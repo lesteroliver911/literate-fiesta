@@ -2,6 +2,8 @@
 
 A web application powered by Google's latest Gemini 2.0 flash model that helps you analyze videos. Simply upload a video and chat with the AI to get detailed insights about its content.
 
+![Video Analysis Assistant Demo](lesteroliver-videoanalysis-gemini2flash.png)
+
 ## What it does
 
 - Upload videos (MP4, MOV, AVI)
