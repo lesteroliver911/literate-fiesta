@@ -1,1 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Analysis Assistant</title>
+    <script src="https://unpkg.com/alpinejs" defer></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        [x-cloak] { display: none !important; }
+    </style>
+</head>
+<body class="bg-[#0f172a] text-gray-100 font-[Inter]" x-data="chatApp()">
+    <div class="min-h-screen flex">
+        <!-- Sidebar -->
+        <div class="w-96 bg-[#1e293b] border-r border-gray-700/50">
+            <div class="p-6">
+                <h1 class="text-2xl font-semibold mb-8">Video Analysis Assistant</h1>
+                
+                <!-- Upload Section -->
+                <div class="space-y-6">
+                    <div class="relative" @dragover.prevent @drop.prevent="handleDrop">
+                        <input type="file" 
+                               class="hidden" 
+                               id="video-upload" 
+                               @change="handleFileSelect"
+                               accept="video/*">
+                        <label for="video-upload" 
+                               class="block p-6 border-2 border-dashed border-gray-600 rounded-xl hover:border-indigo-500 transition-colors cursor-pointer text-center">
+                            <div class="space-y-2">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 mx-auto text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+                                </svg>
+                                <div class="text-sm text-gray-300" x-show="!videoFile">
+                                    <div class="font-semibold">Drop video here or click to upload</div>
+                                    <div class="text-gray-400 text-xs mt-1">MP4, MOV, or AVI</div>
+                                </div>
+                                <div class="text-sm text-indigo-400 break-all" x-show="videoFile" x-text="videoFile.name"></div>
+                            </div>
+                        </label>
+                    </div>
+                    
+                    <!-- Video Preview -->
+                    <template x-if="videoUrl">
+                        <div class="rounded-xl overflow-hidden bg-black/20 max-w-[320px] mx-auto">
+                            <video controls 
+                               class="w-full aspect-video object-contain"
+                            >
+                                <source :src="videoUrl" type="video/mp4">
+                            </video>
+                        </div>
+                    </template>
+                </div>
+            </div>
+        </div>
 
+        <!-- Main Chat Area -->
+        <div class="flex-1 flex flex-col relative">
+            <!-- Chat Messages -->
+            <div class="flex-1 p-6 overflow-y-auto space-y-6" id="chat-messages">
+                <template x-for="message in messages" :key="message.id">
+                    <div :class="`flex ${message.isUser ? 'justify-end' : 'justify-start'}`">
+                        <div :class="`max-w-[70%] group ${message.isUser ? 'items-end' : 'items-start'}`">
+                            <div :class="`rounded-2xl px-6 py-4 ${message.isUser ? 'bg-indigo-600' : 'bg-[#1e293b]'}`">
+                                <p class="text-sm leading-relaxed" x-text="message.content"></p>
+                            </div>
+                            <div class="text-[11px] text-gray-400 mt-2 px-2" x-text="message.timestamp"></div>
+                        </div>
+                    </div>
+                </template>
+            </div>
+
+            <!-- Input Area -->
+            <div class="border-t border-gray-800 bg-[#1e293b]/50 backdrop-blur supports-[backdrop-filter]:bg-[#1e293b]/50">
+                <div class="max-w-4xl mx-auto p-6">
+                    <div class="flex gap-4">
+                        <textarea 
+                            x-model="userInput"
+                            @keydown.enter.prevent="sendMessage"
+                            class="flex-1 bg-[#0f172a] border border-gray-700 rounded-xl p-4 focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none text-sm"
+                            placeholder="Ask about the video..."
+                            rows="2"
+                        ></textarea>
+                        <button 
+                            @click="sendMessage"
+                            :disabled="!canSendMessage"
+                            :class="{'opacity-50 cursor-not-allowed': !canSendMessage}"
+                            class="px-6 self-end h-12 bg-indigo-600 hover:bg-indigo-500 rounded-xl font-medium transition-colors inline-flex items-center justify-center">
+                            <span x-show="!isProcessing">Send</span>
+                            <svg x-show="isProcessing" class="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function chatApp() {
+            return {
+                messages: [],
+                userInput: '',
+                videoFile: null,
+                videoUrl: null,
+                isProcessing: false,
+
+                handleFileSelect(event) {
+                    const file = event.target.files[0];
+                    this.handleFile(file);
+                },
+
+                handleDrop(event) {
+                    const file = event.dataTransfer.files[0];
+                    this.handleFile(file);
+                },
+
+                handleFile(file) {
+                    if (file && file.type.startsWith('video/')) {
+                        this.videoFile = file;
+                        this.videoUrl = URL.createObjectURL(file);
+                        this.uploadVideo(file);
+                    }
+                },
+
+                async uploadVideo(file) {
+                    const formData = new FormData();
+                    formData.append('file', file);
+
+                    try {
+                        const response = await fetch('/api/upload', {
+                            method: 'POST',
+                            body: formData
+                        });
+                        const data = await response.json();
+                        this.videoPath = data.video_path;
+                    } catch (error) {
+                        console.error('Upload failed:', error);
+                    }
+                },
+
+                async sendMessage() {
+                    if (!this.canSendMessage || this.isProcessing) return;
+
+                    const message = this.userInput.trim();
+                    this.messages.push({
+                        id: Date.now(),
+                        content: message,
+                        isUser: true,
+                        timestamp: new Date().toLocaleTimeString()
+                    });
+
+                    this.userInput = '';
+                    this.isProcessing = true;
+
+                    try {
+                        const response = await fetch('/api/analyze', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                video_path: this.videoPath,
+                                prompt: message
+                            })
+                        });
+
+                        const data = await response.json();
+                        
+                        this.messages.push({
+                            id: Date.now(),
+                            content: data.response,
+                            isUser: false,
+                            timestamp: new Date().toLocaleTimeString()
+                        });
+                    } catch (error) {
+                        console.error('Analysis failed:', error);
+                    } finally {
+                        this.isProcessing = false;
+                    }
+                },
+
+                get canSendMessage() {
+                    return this.userInput.trim() && this.videoFile && !this.isProcessing;
+                }
+            }
+        }
+    </script>
+</body>
+</html> 
