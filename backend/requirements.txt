@@ -1,0 +1,7 @@
+fastapi==0.104.1
+python-multipart==0.0.6
+uvicorn==0.24.0
+aiofiles==23.2.1
+phidata==2.7.2
+google-generativeai==0.8.3
+jinja2==3.1.2 
